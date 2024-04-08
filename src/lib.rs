@@ -30,6 +30,7 @@ pub enum ImageSize {
 impl Favicon {
     /// Fetches a favicon from a URL and returns a new Favicon instance.
     /// The fetching algorithm selects the first valid favicon found on the page.
+    /// Custom client can be passed to the function. If omitted, a new client will be created.
     pub async fn fetch(url: Url, client: Option<Client>) -> Result<Self> {
         let client = client.unwrap_or(Client::new());
         Ok(scraper::fetch_and_validate_favicon(url.clone(), &client).await?)

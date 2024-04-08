@@ -2,7 +2,12 @@
 name = "favilib"
 version = "0.1.0"
 edition = "2021"
-
+description = "Library for fetching and parsing favicons from websites"
+keywords = ["favicon", "icon"]
+repository = "https://github.com/Pascal736/favilib"
+license = "MIT"
+readme = "README.md"
+authors = ["Pascal Pfeiffer <PaPfeiffer@proton.me>"]
 
 
 [lib]
