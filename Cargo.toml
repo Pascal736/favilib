@@ -15,9 +15,9 @@ name = "favilib"
 path = "src/lib.rs"
 
 
-[[bin]]
-name = "favilib"
-path = "src/bin.rs"
+# [[bin]]
+# name = "favilib"
+# path = "src/bin.rs"
 
 [dependencies]
 anyhow = "1.0.81"
