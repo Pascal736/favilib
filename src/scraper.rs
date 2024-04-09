@@ -1,31 +1,30 @@
 use anyhow::{Context as _, Result};
-use futures::{stream, StreamExt};
 use scraper::{self, Html, Selector};
+use std::sync::mpsc;
+use std::thread;
 use url::Url;
 
 use super::Favicon;
 
-const N_CONCURRENT_REQUESTS: usize = 10;
-
-pub(crate) async fn fetch_and_validate_favicon(
+pub(crate) fn fetch_and_validate_favicon(
     url: Url,
-    client: &reqwest::Client,
+    client: &reqwest::blocking::Client,
 ) -> Result<Favicon> {
     let url = add_www_to_host(url)?;
-    let page = get_web_page(url.clone(), client).await?;
-    let head = get_page_head_section(page).await?;
-    let favicon_urls = get_favicon_urls_from_header(head, url).await;
-    Ok(fetch_all_favicons(favicon_urls, client).await?)
+    let page = get_web_page(url.clone(), client)?;
+    let head = get_page_head_section(page)?;
+    let favicon_urls = get_favicon_urls_from_header(head, url);
+    Ok(fetch_all_favicons(favicon_urls, client)?)
 }
 
-async fn get_web_page(url: Url, client: &reqwest::Client) -> Result<String> {
-    let response = client.get(url).send().await?;
+fn get_web_page(url: Url, client: &reqwest::blocking::Client) -> Result<String> {
+    let response = client.get(url).send()?;
 
-    let body = response.text().await?;
+    let body = response.text()?;
     Ok(body)
 }
 
-async fn get_page_head_section(page: String) -> Result<Html> {
+fn get_page_head_section(page: String) -> Result<Html> {
     let document = scraper::Html::parse_document(&page);
     let selector = scraper::Selector::parse("head").unwrap();
     let header = document
@@ -35,7 +34,7 @@ async fn get_page_head_section(page: String) -> Result<Html> {
     Ok(Html::parse_fragment(&header.html()))
 }
 
-async fn get_favicon_urls_from_header(header: Html, base_url: Url) -> Vec<Url> {
+fn get_favicon_urls_from_header(header: Html, base_url: Url) -> Vec<Url> {
     let link_selector = Selector::parse("link").unwrap();
     let meta_selector = Selector::parse("meta").unwrap();
 
@@ -93,31 +92,39 @@ async fn get_favicon_urls_from_header(header: Html, base_url: Url) -> Vec<Url> {
     }
 }
 
-async fn fetch_favicon_from_url(url: Url, client: &reqwest::Client) -> Result<Favicon> {
-    let response = client.get(url.clone()).send().await?;
-    let data = response.bytes().await?.to_vec();
+fn fetch_favicon_from_url(url: Url, client: &reqwest::blocking::Client) -> Result<Favicon> {
+    let response = client.get(url.clone()).send()?;
+    let data = response.bytes()?.to_vec();
     Ok(Favicon::build(url, data)?)
 }
 
-async fn fetch_all_favicons(urls: Vec<Url>, client: &reqwest::Client) -> Result<Favicon> {
-    let favicons = stream::iter(urls)
-        .map(|url| async move { fetch_favicon_from_url(url, client).await })
-        .buffered(N_CONCURRENT_REQUESTS);
+fn fetch_all_favicons(urls: Vec<Url>, client: &reqwest::blocking::Client) -> Result<Favicon> {
+    let (tx, rx) = mpsc::channel();
 
-    let valid_favicons: Vec<Favicon> = favicons
-        .filter_map(|result| async {
-            match result {
-                Ok(favicon) => Some(favicon),
-                Err(_) => None,
-            }
-        })
-        .collect()
-        .await;
+    let mut join_handlers = Vec::with_capacity(urls.len());
 
-    match valid_favicons.first() {
-        Some(favicon) => Ok(favicon.clone()),
-        None => Err(anyhow::anyhow!("No favicon found")),
+    for url in urls.clone() {
+        let tx_clone = tx.clone();
+        let client = client.clone();
+        let handle = thread::spawn(move || {
+            let result = fetch_favicon_from_url(url, &client);
+            tx_clone.send(result).unwrap();
+        });
+        join_handlers.push(handle);
     }
+
+    for handle in join_handlers {
+        handle.join().unwrap();
+    }
+
+    for _ in 0..urls.len() {
+        match rx.recv().unwrap() {
+            Ok(favicon) => return Ok(favicon),
+            Err(_) => continue,
+        }
+    }
+
+    Err(anyhow::anyhow!("No favicon found"))
 }
 
 /// Some websites host static files on a domain without the `www` subdomain.
@@ -135,41 +142,41 @@ fn add_www_to_host(url: Url) -> Result<Url> {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_page_head_section() -> Result<()> {
+    #[test]
+    fn test_page_head_section() -> Result<()> {
         let html = r#"<html><head><link rel="icon" type="image/svg+xml" href="/favicon.svg"></head><body><p>Content</p></body></html>"#;
         let link_selector = Selector::parse("link").unwrap();
 
-        let head = get_page_head_section(html.to_string()).await?;
+        let head = get_page_head_section(html.to_string())?;
         assert!(head.select(&link_selector).next().is_some());
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_get_favicon_urls_from_header() -> Result<()> {
+    #[test]
+    fn test_get_favicon_urls_from_header() -> Result<()> {
         let head =
             Html::parse_fragment(r#"<link rel="icon" type="image/svg+xml" href="/favicon.svg">"#);
         let base_url = Url::parse("https://example.com")?;
 
-        let urls = get_favicon_urls_from_header(head, base_url).await;
+        let urls = get_favicon_urls_from_header(head, base_url);
 
         assert_eq!(urls.len(), 1);
         assert_eq!(urls[0], Url::parse("https://example.com/favicon.svg")?);
 
         Ok(())
     }
-    #[tokio::test]
-    async fn test_get_favicon_urls_from_header_multiple_links() -> Result<()> {
+    #[test]
+    fn test_get_favicon_urls_from_header_multiple_links() -> Result<()> {
         let html = r#"
             <head>
                 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
                 <link rel="icon" type="image/svg+xml" href="/favicon2.svg">
             </head>
            "#;
-        let head = get_page_head_section(html.to_string()).await?;
+        let head = get_page_head_section(html.to_string())?;
         let base_url = Url::parse("https://example.com")?;
 
-        let urls = get_favicon_urls_from_header(head, base_url).await;
+        let urls = get_favicon_urls_from_header(head, base_url);
 
         assert_eq!(urls.len(), 2);
         assert_eq!(urls[0], Url::parse("https://example.com/favicon.svg")?);
@@ -178,18 +185,18 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_get_favicon_urls_from_header_excludes_non_favicon_links() -> Result<()> {
+    #[test]
+    fn test_get_favicon_urls_from_header_excludes_non_favicon_links() -> Result<()> {
         let html = r#"
             <head>
                 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
                 <link rel="style sheet" type="image/svg+xml" href="/style.css">
             </head>
            "#;
-        let head = get_page_head_section(html.to_string()).await?;
+        let head = get_page_head_section(html.to_string())?;
         let base_url = Url::parse("https://example.com")?;
 
-        let urls = get_favicon_urls_from_header(head, base_url).await;
+        let urls = get_favicon_urls_from_header(head, base_url);
 
         assert_eq!(urls.len(), 1);
         assert_eq!(urls[0], Url::parse("https://example.com/favicon.svg")?);
@@ -197,14 +204,14 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_get_favicon_url_from_meta_tag() -> Result<()> {
+    #[test]
+    fn test_get_favicon_url_from_meta_tag() -> Result<()> {
         let html = r#"<meta content="/favicon.svg" itemprop="image">"#;
 
-        let head = get_page_head_section(html.to_string()).await?;
+        let head = get_page_head_section(html.to_string())?;
         let base_url = Url::parse("https://example.com")?;
 
-        let urls = get_favicon_urls_from_header(head, base_url).await;
+        let urls = get_favicon_urls_from_header(head, base_url);
 
         assert_eq!(urls.len(), 1);
         assert_eq!(urls[0], Url::parse("https://example.com/favicon.svg")?);
