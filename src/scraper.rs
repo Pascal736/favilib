@@ -93,7 +93,9 @@ fn get_favicon_urls_from_header(header: Html, base_url: Url) -> Vec<Url> {
 }
 
 fn fetch_favicon_from_url(url: Url, client: &reqwest::blocking::Client) -> Result<Favicon> {
+    println!("Fetching favicon from: {}", url);
     let response = client.get(url.clone()).send()?;
+    println!("Response: {:?}", response);
     let data = response.bytes()?.to_vec();
     Ok(Favicon::build(url, data)?)
 }

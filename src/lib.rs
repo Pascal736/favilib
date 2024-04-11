@@ -2,7 +2,7 @@ use anyhow::{Context as _, Result};
 use image::{imageops::FilterType, io::Reader as ImageReader};
 pub use image::{DynamicImage, ImageFormat};
 pub use reqwest::blocking::Client;
-use std::io::Cursor;
+use std::io::{self, Cursor, Write as _};
 use std::path::Path;
 pub use url::Url;
 
@@ -25,6 +25,11 @@ pub enum ImageSize {
     Large,
     Custom(u32, u32),
     Default,
+}
+
+enum ExportTarget<T: AsRef<Path>> {
+    File(T),
+    Stdout,
 }
 
 impl Favicon {
@@ -69,11 +74,46 @@ impl Favicon {
     }
 
     pub fn change_format(&self, format: ImageFormat) -> Result<Self> {
-        todo!()
+        // TODO: Check for formats which do not support transparency.
+        let mut buffer = Cursor::new(Vec::new());
+
+        self.image
+            .write_to(&mut buffer, format)
+            .context("Can't write image to bytes")?;
+
+        let img = ImageReader::new(buffer)
+            .with_guessed_format()
+            .context("Can't determine file type")?
+            .decode()
+            .context("Can't decode image")?;
+
+        Ok(Self {
+            url: self.url.clone(),
+            bytes: img.clone().into_bytes(),
+            image: img,
+        })
+    }
+
+    // Writes the images bytes to stdout.
+    pub fn write_to_stdout(&self, format: ImageFormat) -> Result<()> {
+        let mut buffer = Cursor::new(Vec::new());
+
+        self.image
+            .write_to(&mut buffer, format)
+            .context("Can't write image to stdout")?;
+
+        let stdout = io::stdout();
+        let mut handle = stdout.lock();
+        handle.write_all(buffer.get_ref())?;
+
+        Ok(())
     }
 
     /// Exports the image to a file at the given path.
-    pub fn export(&self, path: &Path, format: ImageFormat) -> Result<()> {
+    pub fn export<Q>(&self, path: Q, format: ImageFormat) -> Result<()>
+    where
+        Q: AsRef<Path>,
+    {
         self.image.save_with_format(path, format).context(format!(
             "Failed to save image from domain {}",
             self.url.as_str()
@@ -87,14 +127,25 @@ impl Favicon {
     pub fn image(&self) -> &DynamicImage {
         &self.image
     }
+
+    /// Exact URL of the favicon including it's path.
     pub fn url(&self) -> &Url {
         &self.url
     }
 }
 
 /// Fetches a favicon from a URL and saves it to a file at the given path.
-pub fn fetch(url: Url, image_size: ImageSize, format: ImageFormat, path: &Path) -> Result<()> {
-    let client = Client::new();
+pub fn fetch<Q>(
+    url: Url,
+    image_size: ImageSize,
+    format: ImageFormat,
+    path: &Q,
+    client: Option<Client>,
+) -> Result<()>
+where
+    Q: AsRef<Path>,
+{
+    let client = client.unwrap_or(Client::new());
     let favicon = Favicon::fetch(url, Some(client))?;
     let favicon = favicon.resize(image_size);
     favicon.export(&path, format)?;
