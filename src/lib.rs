@@ -94,7 +94,7 @@ impl Favicon {
         })
     }
 
-    // Writes the images bytes to stdout.
+    /// Writes the images bytes to stdout.
     pub fn write_to_stdout(&self, format: ImageFormat) -> Result<()> {
         let mut buffer = Cursor::new(Vec::new());
 
