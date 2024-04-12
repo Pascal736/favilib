@@ -1,4 +1,5 @@
 use anyhow::{Context as _, Result};
+use clap::ValueEnum;
 use image::{imageops::FilterType, io::Reader as ImageReader};
 pub use image::{DynamicImage, ImageFormat};
 pub use reqwest::blocking::Client;
@@ -19,11 +20,12 @@ pub struct Favicon {
 /// Default values are: Small (16x16), Medium (32x32), Large (64x64).
 /// Custom allows for custom sizes to be set.
 /// Default uses the original size of the image.
+#[derive(Debug, Clone, ValueEnum)]
 pub enum ImageSize {
     Small,
     Medium,
     Large,
-    Custom(u32, u32),
+    // Custom(u32, u32),
     Default,
 }
 
@@ -60,9 +62,9 @@ impl Favicon {
             ImageSize::Small => img.resize_to_fill(16, 16, FilterType::Lanczos3),
             ImageSize::Medium => img.resize_to_fill(32, 32, FilterType::Lanczos3),
             ImageSize::Large => img.resize_to_fill(64, 64, FilterType::Lanczos3),
-            ImageSize::Custom(width, height) => {
-                img.resize_to_fill(width, height, FilterType::Lanczos3)
-            }
+            // ImageSize::Custom(width, height) => {
+            //     img.resize_to_fill(width, height, FilterType::Lanczos3)
+            // }
             ImageSize::Default => img,
         };
 
