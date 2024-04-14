@@ -32,8 +32,6 @@ favilib fetch github.com --size large --path favicon.png
 favilib fetch github.com --size 32,32 --format ico
 
 # Prints the extracted URL of the favicon to stdout
-favilib fetch github.com --url
+favilib fetch github.com --url-only
 
-# Adds custom headers to the client fetching the Favicon
-favilib fetch github.com --header "User-Agent: Mozilla/5.0" --path favicon.png
 ```
