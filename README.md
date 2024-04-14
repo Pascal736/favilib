@@ -22,7 +22,13 @@ let resized_favicon = favicon.resize(ImageSize::Custom(32,32)).unwrap();
 let reformatted_favicon = resized_favicon.change_format(ImageFormat::Png).unwrap();
 reformatted_favicon.export("favicon.png").unwrap();
 ```
+
+
 ## CLI Usage
+### Installation
+CLI can be installed via cargo by running `cargo install favilib`
+
+### Interface
 
 ```bash
 # Format will be changed based on the file ending
