@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use image::ImageFormat;
 use std::path::Path;
 use thiserror::Error;
@@ -26,6 +26,9 @@ enum Commands {
         #[arg(short, long, default_value = "default")]
         size: Option<ImageSize>,
 
+        #[arg(short, long, default_value = "png")]
+        format: Option<InternalImageFormat>,
+
         /// Path to save the favicon
         #[arg(short, long, required_unless_present = "stdout")]
         path: Option<String>,
@@ -47,6 +50,7 @@ fn main() -> Result<(), ExternalError> {
         Some(Commands::Fetch {
             url,
             size,
+            format,
             path,
             url_only,
             stdout,
@@ -54,11 +58,12 @@ fn main() -> Result<(), ExternalError> {
             let url = parse_url(&url)?;
 
             let size = size.unwrap_or(ImageSize::Default);
+            let format: image::ImageFormat = format.unwrap_or(InternalImageFormat::Png).into();
 
             let favicon = Favicon::fetch(url, None)?;
             let favicon = favicon.resize(size);
 
-            let path = path.clone().unwrap_or(Default::default());
+            let path = path.clone().unwrap_or_default();
 
             let path = Path::new(&path);
 
@@ -70,7 +75,7 @@ fn main() -> Result<(), ExternalError> {
 
             match url_only {
                 true => write_url(favicon.url().clone(), target)?,
-                false => write_favicon(favicon, target, ImageFormat::Png)?,
+                false => write_favicon(favicon, target, format)?,
             };
         }
         None => {
@@ -121,6 +126,25 @@ fn parse_url(url: &str) -> Result<Url, FavilibError> {
     Ok(Url::parse(&url)?)
 }
 
+#[derive(Debug, Clone, ValueEnum)]
+enum InternalImageFormat {
+    Png,
+    Jpeg,
+    WebP,
+    Ico,
+}
+
+impl From<InternalImageFormat> for image::ImageFormat {
+    fn from(value: InternalImageFormat) -> Self {
+        match value {
+            InternalImageFormat::Png => image::ImageFormat::Png,
+            InternalImageFormat::Jpeg => image::ImageFormat::Jpeg,
+            InternalImageFormat::WebP => image::ImageFormat::WebP,
+            InternalImageFormat::Ico => image::ImageFormat::Ico,
+        }
+    }
+}
+
 #[derive(Error, Debug)]
 enum ExternalError {
     #[error("Invalid Url Provided")]
@@ -128,9 +152,6 @@ enum ExternalError {
 
     #[error("No favicon found for given URL")]
     NoFaviconFoundError,
-
-    #[error("Invalid path provided")]
-    InvalidPathError,
 
     #[error("Could not write Favicons to file")]
     WriteError,

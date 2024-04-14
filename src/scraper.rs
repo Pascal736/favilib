@@ -1,4 +1,4 @@
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use scraper::{self, Html, Selector};
 use std::sync::mpsc;
 use std::thread;
@@ -171,7 +171,7 @@ mod tests {
 
         let urls = get_favicon_urls_from_header(head, base_url);
 
-        assert_eq!(urls.len(), 1);
+        assert_eq!(urls.len(), 2);
         assert_eq!(urls[0], Url::parse("https://example.com/favicon.svg")?);
 
         Ok(())
@@ -189,7 +189,7 @@ mod tests {
 
         let urls = get_favicon_urls_from_header(head, base_url);
 
-        assert_eq!(urls.len(), 2);
+        assert_eq!(urls.len(), 3);
         assert_eq!(urls[0], Url::parse("https://example.com/favicon.svg")?);
         assert_eq!(urls[1], Url::parse("https://example.com/favicon2.svg")?);
 
@@ -209,7 +209,7 @@ mod tests {
 
         let urls = get_favicon_urls_from_header(head, base_url);
 
-        assert_eq!(urls.len(), 1);
+        assert_eq!(urls.len(), 2);
         assert_eq!(urls[0], Url::parse("https://example.com/favicon.svg")?);
 
         Ok(())
@@ -224,7 +224,7 @@ mod tests {
 
         let urls = get_favicon_urls_from_header(head, base_url);
 
-        assert_eq!(urls.len(), 1);
+        assert_eq!(urls.len(), 2);
         assert_eq!(urls[0], Url::parse("https://example.com/favicon.svg")?);
 
         Ok(())
