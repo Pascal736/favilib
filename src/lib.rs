@@ -20,18 +20,39 @@ pub struct Favicon {
 /// Default values are: Small (16x16), Medium (32x32), Large (64x64).
 /// Custom allows for custom sizes to be set.
 /// Default uses the original size of the image.
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ImageSize {
     Small,
     Medium,
     Large,
-    // Custom(u32, u32),
+    Custom(u32, u32),
     Default,
+    Invalid,
 }
 
-enum ExportTarget<T: AsRef<Path>> {
-    File(T),
-    Stdout,
+impl From<&str> for ImageSize {
+    fn from(s: &str) -> Self {
+        match s {
+            "small" => ImageSize::Small,
+            "medium" => ImageSize::Medium,
+            "large" => ImageSize::Large,
+            "default" => ImageSize::Default,
+            _ => {
+                let parts: Vec<&str> = s.split(',').collect();
+                if parts.len() != 2 {
+                    return ImageSize::Invalid;
+                }
+                let width = parts[0].parse();
+                let height = parts[1].parse();
+
+                if width.is_err() || height.is_err() {
+                    return ImageSize::Invalid;
+                }
+
+                ImageSize::Custom(width.unwrap(), height.unwrap())
+            }
+        }
+    }
 }
 
 impl Favicon {
@@ -62,10 +83,11 @@ impl Favicon {
             ImageSize::Small => img.resize_to_fill(16, 16, FilterType::Lanczos3),
             ImageSize::Medium => img.resize_to_fill(32, 32, FilterType::Lanczos3),
             ImageSize::Large => img.resize_to_fill(64, 64, FilterType::Lanczos3),
-            // ImageSize::Custom(width, height) => {
-            //     img.resize_to_fill(width, height, FilterType::Lanczos3)
-            // }
+            ImageSize::Custom(width, height) => {
+                img.resize_to_fill(width, height, FilterType::Lanczos3)
+            }
             ImageSize::Default => img,
+            ImageSize::Invalid => img,
         };
 
         Self {
