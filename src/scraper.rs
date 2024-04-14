@@ -92,7 +92,6 @@ fn get_favicon_urls_from_header(header: Html, base_url: Url) -> Vec<Url> {
 }
 
 fn fetch_favicon_from_url(url: Url, client: &reqwest::blocking::Client) -> Result<Favicon> {
-    println!("Fetching favicon from: {}", url);
     let response = client.get(url.clone()).send()?;
     let data = response.bytes()?.to_vec();
     Ok(Favicon::build(url, data)?)
@@ -103,8 +102,6 @@ fn fetch_all_favicons(
     client: &reqwest::blocking::Client,
 ) -> Result<Favicon, FavilibError> {
     let (tx, rx) = mpsc::channel();
-
-    println!("Fetching favicons from {} URLs", urls.len());
 
     let mut join_handlers = Vec::with_capacity(urls.len());
 
