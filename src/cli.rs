@@ -2,8 +2,10 @@ use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use image::ImageFormat;
 use std::path::Path;
+use thiserror::Error;
 use url::Url;
 
+use favilib::errors::FavilibError;
 use favilib::Favicon;
 use favilib::ImageSize;
 
@@ -38,7 +40,7 @@ enum Commands {
     },
 }
 
-fn main() {
+fn main() -> Result<(), ExternalError> {
     let args = Cli::parse();
 
     match args.command {
@@ -49,11 +51,11 @@ fn main() {
             url_only,
             stdout,
         }) => {
-            let url = parse_url(&url).expect("Failed to parse URL");
+            let url = parse_url(&url)?;
 
-            let size = size.expect("Failed to parse size");
+            let size = size.unwrap_or(ImageSize::Default);
 
-            let favicon = Favicon::fetch(url, None).expect("Failed to fetch favicon");
+            let favicon = Favicon::fetch(url, None)?;
             let favicon = favicon.resize(size);
 
             let path = path.clone().unwrap_or(Default::default());
@@ -67,15 +69,16 @@ fn main() {
             };
 
             match url_only {
-                true => write_url(favicon.url().clone(), target).expect("Failed to write URL"),
-                false => write_favicon(favicon, target, ImageFormat::Png)
-                    .expect("Failed to write favicon"),
+                true => write_url(favicon.url().clone(), target)?,
+                false => write_favicon(favicon, target, ImageFormat::Png)?,
             };
         }
         None => {
             eprintln!("No command provided. Use --help to see available commands.");
         }
     }
+
+    Ok(())
 }
 
 enum ExportTarget<'a> {
@@ -83,14 +86,18 @@ enum ExportTarget<'a> {
     Stdout,
 }
 
-fn write_favicon(favicon: Favicon, target: ExportTarget, format: ImageFormat) -> Result<()> {
+fn write_favicon(
+    favicon: Favicon,
+    target: ExportTarget,
+    format: ImageFormat,
+) -> Result<(), FavilibError> {
     match target {
         ExportTarget::File(path) => favicon.export(path, format),
         ExportTarget::Stdout => favicon.write_to_stdout(format),
     }
 }
 
-fn write_url(url: Url, target: ExportTarget) -> Result<()> {
+fn write_url(url: Url, target: ExportTarget) -> Result<(), FavilibError> {
     match target {
         ExportTarget::File(path) => {
             std::fs::write(path, url.as_str())?;
@@ -104,12 +111,37 @@ fn write_url(url: Url, target: ExportTarget) -> Result<()> {
 
 /// Parses a URL string into a `Url` struct.
 /// If scheme is missing adds https as scheme.
-fn parse_url(url: &str) -> Result<Url> {
+fn parse_url(url: &str) -> Result<Url, FavilibError> {
     let url = if url.starts_with("http://") || url.starts_with("https://") {
         url.to_string()
     } else {
         format!("https://{}", url)
     };
 
-    Url::parse(&url).map_err(|_| anyhow!("Failed to parse URL"))
+    Ok(Url::parse(&url)?)
+}
+
+#[derive(Error, Debug)]
+enum ExternalError {
+    #[error("Invalid Url Provided")]
+    InvalidUrlError,
+
+    #[error("No favicon found for given URL")]
+    NoFaviconFoundError,
+
+    #[error("Invalid path provided")]
+    InvalidPathError,
+
+    #[error("Could not write Favicons to file")]
+    WriteError,
+}
+
+impl From<FavilibError> for ExternalError {
+    fn from(value: FavilibError) -> Self {
+        match value {
+            FavilibError::UrlParseError(_) => ExternalError::InvalidUrlError,
+            FavilibError::NoFaviconFoundError => ExternalError::NoFaviconFoundError,
+            _ => ExternalError::WriteError,
+        }
+    }
 }
