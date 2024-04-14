@@ -2,7 +2,7 @@
 Favicon Fetcher written in Rust. Contains library as well as CLI tool
 
 
-> Warning: This is a work in progress. The library is not yet stable and the CLI tool is not yet implemented.
+> Warning: This is a work in progress. The library is not yet stable.
 
 
 ## Library Usage
@@ -32,8 +32,6 @@ favilib fetch github.com --size large --path favicon.png
 favilib fetch github.com --size 32,32 --format ico
 
 # Prints the extracted URL of the favicon to stdout
-favilib fetch github.com --url
+favilib fetch github.com --url-only --stdout
 
-# Adds custom headers to the client fetching the Favicon
-favilib fetch github.com --header "User-Agent: Mozilla/5.0" --path favicon.png
 ```

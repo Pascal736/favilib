@@ -1,15 +1,16 @@
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use scraper::{self, Html, Selector};
 use std::sync::mpsc;
 use std::thread;
 use url::Url;
 
+use super::errors::FavilibError;
 use super::Favicon;
 
 pub(crate) fn fetch_and_validate_favicon(
     url: Url,
     client: &reqwest::blocking::Client,
-) -> Result<Favicon> {
+) -> Result<Favicon, FavilibError> {
     let url = add_www_to_host(url)?;
     let page = get_web_page(url.clone(), client)?;
     let head = get_page_head_section(page)?;
@@ -17,21 +18,21 @@ pub(crate) fn fetch_and_validate_favicon(
     Ok(fetch_all_favicons(favicon_urls, client)?)
 }
 
-fn get_web_page(url: Url, client: &reqwest::blocking::Client) -> Result<String> {
+fn get_web_page(url: Url, client: &reqwest::blocking::Client) -> Result<String, FavilibError> {
     let response = client.get(url).send()?;
 
     let body = response.text()?;
     Ok(body)
 }
 
-fn get_page_head_section(page: String) -> Result<Html> {
+fn get_page_head_section(page: String) -> Result<Html, FavilibError> {
     let document = scraper::Html::parse_document(&page);
     let selector = scraper::Selector::parse("head").unwrap();
-    let header = document
-        .select(&selector)
-        .next()
-        .context("No header section found")?;
-    Ok(Html::parse_fragment(&header.html()))
+    let header = document.select(&selector).next();
+    match header {
+        None => Err(FavilibError::NoFaviconFoundError),
+        Some(header) => Ok(Html::parse_fragment(&header.html())),
+    }
 }
 
 fn get_favicon_urls_from_header(header: Html, base_url: Url) -> Vec<Url> {
@@ -85,11 +86,9 @@ fn get_favicon_urls_from_header(header: Html, base_url: Url) -> Vec<Url> {
         }
     }
 
-    match urls.is_empty() {
-        // If no favicon urls are found, add the default favicon url
-        true => vec![base_url.join("/favicon.ico").unwrap()],
-        false => urls,
-    }
+    urls.append(&mut get_default_urls(base_url));
+
+    urls
 }
 
 fn fetch_favicon_from_url(url: Url, client: &reqwest::blocking::Client) -> Result<Favicon> {
@@ -98,7 +97,10 @@ fn fetch_favicon_from_url(url: Url, client: &reqwest::blocking::Client) -> Resul
     Ok(Favicon::build(url, data)?)
 }
 
-fn fetch_all_favicons(urls: Vec<Url>, client: &reqwest::blocking::Client) -> Result<Favicon> {
+fn fetch_all_favicons(
+    urls: Vec<Url>,
+    client: &reqwest::blocking::Client,
+) -> Result<Favicon, FavilibError> {
     let (tx, rx) = mpsc::channel();
 
     let mut join_handlers = Vec::with_capacity(urls.len());
@@ -124,18 +126,24 @@ fn fetch_all_favicons(urls: Vec<Url>, client: &reqwest::blocking::Client) -> Res
         }
     }
 
-    Err(anyhow::anyhow!("No favicon found"))
+    Err(FavilibError::NoFaviconFoundError)
 }
 
 /// Some websites host static files on a domain without the `www` subdomain.
-fn add_www_to_host(url: Url) -> Result<Url> {
-    let host = url.host_str().context("No host found")?;
+fn add_www_to_host(url: Url) -> Result<Url, FavilibError> {
+    let host = url.host_str().unwrap();
     let mut new_url = url.clone();
     if !host.starts_with("www.") {
         let new_host = format!("www.{}", host);
         new_url.set_host(Some(&new_host))?;
-    }
+    };
     Ok(new_url)
+}
+
+fn get_default_urls(base_url: Url) -> Vec<Url> {
+    let mut urls = vec![];
+    urls.push(base_url.join("/favicon.ico").unwrap());
+    urls
 }
 
 #[cfg(test)]
@@ -160,7 +168,7 @@ mod tests {
 
         let urls = get_favicon_urls_from_header(head, base_url);
 
-        assert_eq!(urls.len(), 1);
+        assert_eq!(urls.len(), 2);
         assert_eq!(urls[0], Url::parse("https://example.com/favicon.svg")?);
 
         Ok(())
@@ -178,7 +186,7 @@ mod tests {
 
         let urls = get_favicon_urls_from_header(head, base_url);
 
-        assert_eq!(urls.len(), 2);
+        assert_eq!(urls.len(), 3);
         assert_eq!(urls[0], Url::parse("https://example.com/favicon.svg")?);
         assert_eq!(urls[1], Url::parse("https://example.com/favicon2.svg")?);
 
@@ -198,7 +206,7 @@ mod tests {
 
         let urls = get_favicon_urls_from_header(head, base_url);
 
-        assert_eq!(urls.len(), 1);
+        assert_eq!(urls.len(), 2);
         assert_eq!(urls[0], Url::parse("https://example.com/favicon.svg")?);
 
         Ok(())
@@ -213,7 +221,7 @@ mod tests {
 
         let urls = get_favicon_urls_from_header(head, base_url);
 
-        assert_eq!(urls.len(), 1);
+        assert_eq!(urls.len(), 2);
         assert_eq!(urls[0], Url::parse("https://example.com/favicon.svg")?);
 
         Ok(())
