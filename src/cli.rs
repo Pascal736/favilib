@@ -1,4 +1,3 @@
-use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use image::ImageFormat;
 use std::path::Path;
@@ -54,35 +53,51 @@ fn main() -> Result<(), ExternalError> {
             path,
             url_only,
             stdout,
-        }) => {
-            let url = parse_url(&url)?;
-
-            let size = size.unwrap_or(ImageSize::Default);
-            let format: image::ImageFormat = format.unwrap_or(InternalImageFormat::Png).into();
-
-            let favicon = Favicon::fetch(url, None)?;
-            let favicon = favicon.resize(size);
-
-            let path = path.clone().unwrap_or_default();
-
-            let path = Path::new(&path);
-
-            let target = if stdout {
-                ExportTarget::Stdout
-            } else {
-                ExportTarget::File(Path::new(path))
-            };
-
-            match url_only {
-                true => write_url(favicon.url().clone(), target)?,
-                false => write_favicon(favicon, target, format)?,
-            };
-        }
+        }) => match handle_fetch(url, size, format, path, url_only, stdout) {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        },
         None => {
             eprintln!("No command provided. Use --help to see available commands.");
         }
     }
 
+    Ok(())
+}
+
+fn handle_fetch(
+    url: String,
+    size: Option<ImageSize>,
+    format: Option<InternalImageFormat>,
+    path: Option<String>,
+    url_only: bool,
+    stdout: bool,
+) -> Result<(), ExternalError> {
+    let url = parse_url(&url)?;
+
+    let size = size.unwrap_or(ImageSize::Default);
+    let format: image::ImageFormat = format.unwrap_or(InternalImageFormat::Png).into();
+
+    let favicon = Favicon::fetch(url, None)?;
+    let favicon = favicon.resize(size);
+
+    let path = path.clone().unwrap_or_default();
+
+    let path = Path::new(&path);
+
+    let target = if stdout {
+        ExportTarget::Stdout
+    } else {
+        ExportTarget::File(Path::new(path))
+    };
+
+    match url_only {
+        true => write_url(favicon.url().clone(), target)?,
+        false => write_favicon(favicon, target, format)?,
+    };
     Ok(())
 }
 
@@ -150,6 +165,9 @@ enum ExternalError {
     #[error("Invalid Url Provided")]
     InvalidUrlError,
 
+    #[error("Could not connect to website")]
+    FetchError,
+
     #[error("No favicon found for given URL")]
     NoFaviconFoundError,
 
@@ -162,6 +180,7 @@ impl From<FavilibError> for ExternalError {
         match value {
             FavilibError::UrlParseError(_) => ExternalError::InvalidUrlError,
             FavilibError::NoFaviconFoundError => ExternalError::NoFaviconFoundError,
+            FavilibError::FetchError(_) => ExternalError::FetchError,
             _ => ExternalError::WriteError,
         }
     }
