@@ -1,3 +1,6 @@
+[![crates.io version](https://img.shields.io/crates/v/favilib)](https://crates.io/crates/favilib)
+[![docs.rs](https://img.shields.io/docsrs/favilib)](https://docs.rs/crate/favilib/latest)
+
 # favilib
 Favicon Fetcher written in Rust. Contains library as well as CLI tool
 
