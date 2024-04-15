@@ -8,7 +8,7 @@ Favicon Fetcher written in Rust. Contains library as well as CLI tool
 > Warning: This is a work in progress. The library is not yet stable.
 
 
-## Library Usage
+## Library
 ```rust
 use favilib::{fetch, Favicon, ImageSize, ImageFormat, Url, Client};
 
@@ -27,7 +27,7 @@ reformatted_favicon.export("favicon.png").unwrap();
 ```
 
 
-## CLI Usage
+## CLI
 ### Installation
 CLI can be installed via cargo by running `cargo install favilib`
 
