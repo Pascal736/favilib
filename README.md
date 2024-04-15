@@ -2,10 +2,10 @@
 [![docs.rs](https://img.shields.io/docsrs/favilib)](https://docs.rs/crate/favilib/latest)
 
 # favilib
-Favicon Fetcher written in Rust. Contains library as well as CLI tool
+Favicon Fetcher written in Rust. Contains library as well as CLI tool.
 
-
-> Warning: This is a work in progress. The library is not yet stable.
+> [!WARNING]
+> This is a work in progress. The library is not yet stable.
 
 
 ## Library
