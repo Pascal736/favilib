@@ -11,11 +11,10 @@ pub(crate) fn fetch_and_validate_favicon(
     url: Url,
     client: &reqwest::blocking::Client,
 ) -> Result<Favicon, FavilibError> {
-    let url = add_www_to_host(url)?;
     let page = get_web_page(url.clone(), client)?;
     let head = get_page_head_section(page)?;
     let favicon_urls = get_favicon_urls_from_header(head, url);
-    Ok(fetch_all_favicons(favicon_urls, client)?)
+    fetch_all_favicons(favicon_urls, client)
 }
 
 fn get_web_page(url: Url, client: &reqwest::blocking::Client) -> Result<String, FavilibError> {
