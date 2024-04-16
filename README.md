@@ -37,8 +37,8 @@ CLI can be installed via cargo by running `cargo install favilib`
 # Format will be changed based on the file ending
 favilib fetch github.com --size large --path favicon.png 
 
-# Format can also be specified explicitly and bytes can be printed to stdout if path is omitted. And size can be specified explicitly
-favilib fetch github.com --size 32,32 --format ico
+# Format can also be specified explicitly and bytes can be printed to stdout. Size can be specified explicitly
+favilib fetch github.com --size 32,32 --format ico --stdout
 
 # Prints the extracted URL of the favicon to stdout
 favilib fetch github.com --url-only --stdout
